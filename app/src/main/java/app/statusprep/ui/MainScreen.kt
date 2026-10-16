@@ -8,54 +8,79 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import app.statusprep.R
 import app.statusprep.core.EncodingConfig
 import app.statusprep.core.Formatters
+import app.statusprep.core.OutputPlan
 import app.statusprep.core.ProfileId
 import app.statusprep.core.ProfileSelection
 import app.statusprep.core.Resolution
 import app.statusprep.media.VideoInfo
 import app.statusprep.processing.JobState
 
+private enum class MainStage { Empty, Loading, Error, Editor, Processing }
+
 @Composable
-fun MainContent(vm: MainViewModel, source: SourceState, selection: ProfileSelection, job: JobState) {
+fun MainScreen(
+    vm: MainViewModel,
+    source: SourceState,
+    selection: ProfileSelection,
+    job: JobState,
+    snackbar: SnackbarHostState,
+) {
     val context = LocalContext.current
+    val ready = source as? SourceState.Ready
     val running = job is JobState.Running
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) vm.onVideoPicked(uri)
     }
-    val pickVideo = {
-        picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
-    }
+    val pickVideo = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)) }
 
     // La notification du service de premier plan s'affiche mieux avec l'autorisation, mais le
     // traitement fonctionne aussi sans : on la demande une seule fois puis on lance dans tous les cas.
@@ -73,38 +98,58 @@ fun MainContent(vm: MainViewModel, source: SourceState, selection: ProfileSelect
         }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        when (source) {
-            SourceState.None -> EmptyState(onPick = pickVideo)
-            SourceState.Loading -> LoadingState()
-            is SourceState.Error -> {
-                Banner(stringResource(R.string.source_error_title), source.message, BannerKind.Error)
-                PrimaryButton(stringResource(R.string.pick_video), pickVideo)
-            }
-            is SourceState.Ready -> {
-                VideoPreview(source.uri, source.info.aspectRatio)
-                SourceCard(source.info)
+    val stage = when {
+        source is SourceState.Loading -> MainStage.Loading
+        source is SourceState.Error -> MainStage.Error
+        ready == null -> MainStage.Empty
+        running -> MainStage.Processing
+        else -> MainStage.Editor
+    }
 
-                when (job) {
-                    is JobState.Running -> ProcessingCard(job, onCancel = vm::cancelProcessing)
-                    else -> {
-                        if (job is JobState.Failed) {
-                            Banner(
-                                stringResource(R.string.failed_title),
-                                job.message + (job.detail?.let { "\n" + stringResource(R.string.failed_detail, it) } ?: ""),
-                                BannerKind.Error,
-                            )
-                            TextButton(onClick = vm::acknowledgeJob) { Text(stringResource(R.string.dismiss)) }
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbar) },
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge) },
+                actions = {
+                    if (ready != null) {
+                        TextButton(onClick = pickVideo, enabled = !running) {
+                            Text(stringResource(R.string.change_video), style = MaterialTheme.typography.labelLarge)
                         }
-                        if (job is JobState.Cancelled) {
-                            Banner(stringResource(R.string.cancelled_title), stringResource(R.string.cancelled_body), BannerKind.Info)
-                            TextButton(onClick = vm::acknowledgeJob) { Text(stringResource(R.string.dismiss)) }
-                        }
-                        ProfileSection(vm, source.info, selection)
-                        PrimaryButton(stringResource(R.string.start_processing), onStart)
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = Color.Transparent,
+                ),
+            )
+        },
+        bottomBar = {
+            if (ready != null) {
+                BottomActionBar {
+                    if (running) {
+                        OutlineButton(stringResource(R.string.processing_cancel), vm::cancelProcessing, Modifier.fillMaxWidth())
+                    } else {
+                        val plan = vm.planFor(ready.info, selection)
+                        PrimaryButton(
+                            stringResource(if (plan.passThrough) R.string.start_processing_copy else R.string.start_processing),
+                            onStart,
+                        )
                     }
                 }
-                SecondaryButton(stringResource(R.string.change_video), pickVideo, enabled = !running)
+            }
+        },
+    ) { padding ->
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            Crossfade(targetState = stage, label = "stage") { s ->
+                when (s) {
+                    MainStage.Empty -> EmptyState(onPick = pickVideo)
+                    MainStage.Loading -> LoadingState()
+                    MainStage.Error -> ErrorState((source as? SourceState.Error)?.message.orEmpty(), onPick = pickVideo)
+                    MainStage.Processing -> ProcessingPanel(job as? JobState.Running)
+                    MainStage.Editor -> if (ready != null) EditorContent(vm, ready, selection, job)
+                }
             }
         }
     }
@@ -113,29 +158,27 @@ fun MainContent(vm: MainViewModel, source: SourceState, selection: ProfileSelect
 @Composable
 private fun EmptyState(onPick: () -> Unit) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(top = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = ScreenPadding).padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.Center,
     ) {
-        Text(
-            stringResource(R.string.empty_title),
-            style = MaterialTheme.typography.headlineSmall,
-        )
+        Text(stringResource(R.string.empty_title), style = MaterialTheme.typography.headlineMedium)
+        Spacer(Modifier.height(12.dp))
         Text(
             stringResource(R.string.empty_body),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        PrimaryButton(stringResource(R.string.pick_video), onPick, Modifier.padding(top = 12.dp))
+        Spacer(Modifier.height(32.dp))
+        PrimaryButton(stringResource(R.string.pick_video), onPick)
     }
 }
 
 @Composable
 private fun LoadingState() {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 48.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically,
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         CircularProgressIndicator()
         Text(stringResource(R.string.loading_video), style = MaterialTheme.typography.bodyLarge)
@@ -143,55 +186,165 @@ private fun LoadingState() {
 }
 
 @Composable
-private fun SourceCard(info: VideoInfo) {
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+private fun ErrorState(message: String, onPick: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(horizontal = ScreenPadding),
+        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
     ) {
-        Column(Modifier.padding(16.dp)) {
-            info.displayName?.let {
-                Text(it, style = MaterialTheme.typography.titleMedium, maxLines = 1, modifier = Modifier.padding(bottom = 4.dp))
+        Banner(stringResource(R.string.source_error_title), message, BannerKind.Error)
+        PrimaryButton(stringResource(R.string.pick_video), onPick)
+    }
+}
+
+/** Traitement : un seul élément central, lisible d'un coup d'œil. */
+@Composable
+private fun ProcessingPanel(job: JobState.Running?) {
+    val progress = job?.progress
+    Column(
+        modifier = Modifier.fillMaxSize().padding(horizontal = ScreenPadding),
+        verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(Modifier.size(176.dp), contentAlignment = Alignment.Center) {
+            if (progress != null) {
+                CircularProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.fillMaxSize(),
+                    strokeWidth = 12.dp,
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                )
+                Text("${(progress * 100).toInt()} %", style = MaterialTheme.typography.displaySmall)
+            } else {
+                CircularProgressIndicator(
+                    modifier = Modifier.fillMaxSize(),
+                    strokeWidth = 12.dp,
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                )
             }
-            SpecRow(stringResource(R.string.spec_duration), Formatters.duration(info.durationMs))
-            SpecRow(stringResource(R.string.spec_size), Formatters.bytes(info.sizeBytes))
-            SpecRow(stringResource(R.string.spec_dimensions), Formatters.dimensions(info.width, info.height))
-            SpecRow(
-                stringResource(R.string.spec_video_codec),
-                Formatters.videoCodec(info.videoMime) + if (info.isHdr) " · " + stringResource(R.string.hdr_badge) else "",
-            )
-            SpecRow(stringResource(R.string.spec_video_bitrate), bitrateText(info))
-            SpecRow(stringResource(R.string.spec_fps), Formatters.frameRate(info.frameRate))
-            SpecRow(stringResource(R.string.spec_audio), audioText(info))
         }
+        Text(stringResource(R.string.processing_title), style = MaterialTheme.typography.headlineSmall)
+        if (progress == null) {
+            Text(
+                stringResource(R.string.processing_indeterminate),
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center,
+            )
+        }
+        Text(
+            stringResource(R.string.processing_hint),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
 @Composable
-private fun ProfileSection(vm: MainViewModel, info: VideoInfo, selection: ProfileSelection) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+private fun EditorContent(vm: MainViewModel, ready: SourceState.Ready, selection: ProfileSelection, job: JobState) {
+    val info = ready.info
+    var showDetails by rememberSaveable { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = ScreenPadding)
+            .padding(top = 4.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        if (job is JobState.Failed) {
+            Banner(
+                stringResource(R.string.failed_title),
+                job.message + (job.detail?.let { "\n" + stringResource(R.string.failed_detail, it) } ?: ""),
+                BannerKind.Error,
+            )
+            TextButton(onClick = vm::acknowledgeJob) { Text(stringResource(R.string.dismiss)) }
+        }
+        if (job is JobState.Cancelled) {
+            Banner(stringResource(R.string.cancelled_title), stringResource(R.string.cancelled_body), BannerKind.Info)
+            TextButton(onClick = vm::acknowledgeJob) { Text(stringResource(R.string.dismiss)) }
+        }
+
+        VideoPreview(ready.uri, info.aspectRatio)
+
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Pill(Formatters.duration(info.durationMs))
+                Pill(Formatters.dimensions(info.width, info.height))
+                Pill(Formatters.bytes(info.sizeBytes))
+                Pill(Formatters.videoCodec(info.videoMime))
+                if (info.isHdr) Pill(stringResource(R.string.hdr_badge), emphasized = true)
+            }
+            TextButton(onClick = { showDetails = !showDetails }) {
+                Text(stringResource(if (showDetails) R.string.details_hide else R.string.details_show))
+            }
+            AnimatedVisibility(visible = showDetails) {
+                Card(
+                    shape = MaterialTheme.shapes.medium,
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                ) {
+                    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        info.displayName?.let {
+                            Text(it, style = MaterialTheme.typography.titleMedium, maxLines = 1, modifier = Modifier.padding(vertical = 8.dp))
+                            RowDivider()
+                        }
+                        SpecRow(stringResource(R.string.spec_duration), Formatters.duration(info.durationMs))
+                        SpecRow(stringResource(R.string.spec_size), Formatters.bytes(info.sizeBytes))
+                        SpecRow(stringResource(R.string.spec_dimensions), Formatters.dimensions(info.width, info.height))
+                        SpecRow(stringResource(R.string.spec_video_codec), Formatters.videoCodec(info.videoMime))
+                        SpecRow(stringResource(R.string.spec_video_bitrate), bitrateText(info))
+                        SpecRow(stringResource(R.string.spec_fps), Formatters.frameRate(info.frameRate))
+                        SpecRow(stringResource(R.string.spec_audio), audioText(info))
+                    }
+                }
+            }
+        }
+
+        ProfilePicker(vm, selection)
+        OutputCard(info, vm.planFor(info, selection))
+    }
+}
+
+@Composable
+private fun ProfilePicker(vm: MainViewModel, selection: ProfileSelection) {
+    val options = listOf(
+        ProfileId.BALANCED to R.string.profile_balanced,
+        ProfileId.DETAILED to R.string.profile_detailed,
+        ProfileId.CUSTOM to R.string.profile_custom,
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SectionTitle(stringResource(R.string.section_profile))
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            options.forEachIndexed { index, (id, label) ->
+                SegmentedButton(
+                    selected = selection.id == id,
+                    onClick = { vm.selectProfile(id) },
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                    modifier = Modifier.height(56.dp),
+                    label = { Text(stringResource(label), style = MaterialTheme.typography.labelLarge, maxLines = 1) },
+                )
+            }
+        }
         Text(
-            stringResource(R.string.profile_experimental),
+            stringResource(
+                when (selection.id) {
+                    ProfileId.BALANCED -> R.string.profile_balanced_desc
+                    ProfileId.DETAILED -> R.string.profile_detailed_desc
+                    ProfileId.CUSTOM -> R.string.profile_custom_desc
+                },
+            ),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            ProfileOption(
-                stringResource(R.string.profile_balanced), stringResource(R.string.profile_balanced_desc),
-                selection.id == ProfileId.BALANCED,
-            ) { vm.selectProfile(ProfileId.BALANCED) }
-            ProfileOption(
-                stringResource(R.string.profile_detailed), stringResource(R.string.profile_detailed_desc),
-                selection.id == ProfileId.DETAILED,
-            ) { vm.selectProfile(ProfileId.DETAILED) }
-            ProfileOption(
-                stringResource(R.string.profile_custom), stringResource(R.string.profile_custom_desc),
-                selection.id == ProfileId.CUSTOM,
-            ) { vm.selectProfile(ProfileId.CUSTOM) }
-        }
 
-        if (selection.id == ProfileId.CUSTOM) {
-            Card(shape = RoundedCornerShape(16.dp)) {
+        AnimatedVisibility(visible = selection.id == ProfileId.CUSTOM) {
+            Card(
+                shape = MaterialTheme.shapes.medium,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+            ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.custom_resolution), style = MaterialTheme.typography.labelLarge)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -203,11 +356,17 @@ private fun ProfileSection(vm: MainViewModel, info: VideoInfo, selection: Profil
                             )
                         }
                     }
-                    Text(
-                        stringResource(R.string.custom_bitrate, mbpsText(selection.customMbps)),
-                        style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(stringResource(R.string.custom_bitrate), style = MaterialTheme.typography.labelLarge)
+                        Text(
+                            String.format(java.util.Locale.FRANCE, "%.1f Mb/s", selection.customMbps),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                     val steps = ((EncodingConfig.CUSTOM_MAX_MBPS - EncodingConfig.CUSTOM_MIN_MBPS) / EncodingConfig.CUSTOM_STEP_MBPS).toInt() - 1
                     Slider(
                         value = selection.customMbps,
@@ -218,102 +377,62 @@ private fun ProfileSection(vm: MainViewModel, info: VideoInfo, selection: Profil
                 }
             }
         }
-
-        PlanCard(vm, info, selection)
     }
 }
 
+/** Ce que l'on obtiendra : poids avant → après en grand, détails en dessous. */
 @Composable
-private fun ProfileOption(title: String, description: String, selected: Boolean, onSelect: () -> Unit) {
+private fun OutputCard(info: VideoInfo, plan: OutputPlan) {
+    val original = info.sizeBytes
+    val estimate = plan.estimatedBytes
+    val heavier = !plan.passThrough && original != null && estimate != null && estimate > original
+
     Card(
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer
-            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         ),
-        modifier = Modifier.fillMaxWidth().selectable(selected = selected, role = Role.RadioButton, onClick = onSelect),
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(Modifier.padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(selected = selected, onClick = null, modifier = Modifier.padding(12.dp))
-            Column {
-                Text(title, style = MaterialTheme.typography.titleMedium)
-                Text(description, style = MaterialTheme.typography.bodyMedium)
-            }
-        }
-    }
-}
-
-@Composable
-private fun PlanCard(vm: MainViewModel, info: VideoInfo, selection: ProfileSelection) {
-    val plan = vm.planFor(info, selection)
-    Card(shape = RoundedCornerShape(16.dp)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            SectionTitle(stringResource(R.string.plan_title))
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.plan_title), style = MaterialTheme.typography.labelMedium)
             Text(
-                stringResource(
-                    R.string.plan_line,
-                    Formatters.dimensions(plan.width, plan.height),
-                    Formatters.bitrate(plan.videoBitrate.toLong()),
-                ),
+                text = when {
+                    plan.passThrough -> stringResource(R.string.plan_copy_headline)
+                    original != null && estimate != null ->
+                        stringResource(R.string.plan_size_from_to, Formatters.bytes(original), Formatters.bytes(estimate))
+                    estimate != null -> stringResource(R.string.plan_size_only, Formatters.bytes(estimate))
+                    else -> Formatters.dimensions(plan.width, plan.height)
+                },
+                style = MaterialTheme.typography.headlineMedium,
+            )
+            Text(
+                text = if (plan.passThrough) {
+                    stringResource(R.string.plan_line_source, Formatters.dimensions(plan.width, plan.height), bitrateText(info))
+                } else {
+                    stringResource(
+                        R.string.plan_line,
+                        Formatters.dimensions(plan.width, plan.height),
+                        Formatters.bitrate(plan.videoBitrate.toLong()),
+                    )
+                },
                 style = MaterialTheme.typography.bodyLarge,
             )
-            plan.estimatedBytes?.let {
-                Text(stringResource(R.string.plan_estimate, Formatters.bytes(it)), style = MaterialTheme.typography.bodyMedium)
+
+            Column(Modifier.padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (plan.passThrough) NoteRow(stringResource(R.string.plan_pass_through))
+                if (heavier) NoteRow(stringResource(R.string.plan_heavier), emphasized = true)
+                if (plan.bitrateLimitedBySource && !plan.passThrough) NoteRow(stringResource(R.string.plan_limited_by_source))
+                if (info.isHdr) NoteRow(stringResource(R.string.plan_hdr), emphasized = true)
             }
-            if (plan.bitrateLimitedBySource) {
-                Text(stringResource(R.string.plan_limited_by_source), style = MaterialTheme.typography.bodyMedium)
-            }
-            Text(stringResource(R.string.plan_no_upscale), style = MaterialTheme.typography.bodyMedium)
-            if (info.isHdr) {
+            if (!plan.passThrough) {
                 Text(
-                    stringResource(R.string.plan_hdr),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
+                    stringResource(R.string.plan_disclaimer),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 4.dp),
                 )
             }
-            Text(
-                stringResource(R.string.plan_disclaimer),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }
-
-@Composable
-private fun ProcessingCard(job: JobState.Running, onCancel: () -> Unit) {
-    Card(shape = RoundedCornerShape(16.dp)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SectionTitle(stringResource(R.string.processing_title))
-            val progress = job.progress
-            if (progress != null) {
-                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
-                Text(stringResource(R.string.processing_percent, (progress * 100).toInt()), style = MaterialTheme.typography.bodyLarge)
-            } else {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                Text(stringResource(R.string.processing_indeterminate), style = MaterialTheme.typography.bodyLarge)
-            }
-            Text(
-                stringResource(R.string.processing_hint),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            SecondaryButton(stringResource(R.string.processing_cancel), onCancel)
-        }
-    }
-}
-
-@Composable
-internal fun bitrateText(info: VideoInfo): String {
-    val value = Formatters.bitrate(info.videoBitrate)
-    return if (info.bitrateIsApproximate && info.videoBitrate != null) "≈ $value" else value
-}
-
-@Composable
-internal fun audioText(info: VideoInfo): String {
-    if (!info.hasAudio) return stringResource(R.string.audio_none)
-    val codec = Formatters.audioCodec(info.audioMime)
-    return if (info.audioBitrate != null) "$codec · ${Formatters.bitrate(info.audioBitrate)}" else codec
-}
-
-private fun mbpsText(v: Float): String = String.format(java.util.Locale.FRANCE, "%.1f Mb/s", v)

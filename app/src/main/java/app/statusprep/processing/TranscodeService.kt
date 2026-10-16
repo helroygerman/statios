@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.media.MediaCodecInfo
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -132,19 +133,31 @@ class TranscodeService : Service() {
         workFile = out
         val plan = req.plan
 
-        val encoderFactory = DefaultEncoderFactory.Builder(this)
-            .setRequestedVideoEncoderSettings(
-                VideoEncoderSettings.Builder().setBitrate(plan.videoBitrate).build(),
-            )
-            .apply {
-                plan.audioBitrate?.let {
-                    setRequestedAudioEncoderSettings(AudioEncoderSettings.Builder().setBitrate(it).build())
+        // Copie sans ré-encodage : on ne demande AUCUN réglage d'encodeur. Media3 ne transcode
+        // que si un réglage est demandé, si des effets sont présents ou si les formats diffèrent
+        // (voir TransformerUtil.shouldTranscodeVideo) : ici rien de tout cela, donc simple remux.
+        val encoderFactory = if (plan.passThrough) {
+            DefaultEncoderFactory.Builder(this).build()
+        } else {
+            DefaultEncoderFactory.Builder(this)
+                .setRequestedVideoEncoderSettings(
+                    VideoEncoderSettings.Builder()
+                        .setBitrate(plan.videoBitrate)
+                        .setBitrateMode(MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR)
+                        .setiFrameIntervalSeconds(EncodingConfig.KEYFRAME_INTERVAL_SECONDS)
+                        .build(),
+                )
+                .apply {
+                    plan.audioBitrate?.let {
+                        setRequestedAudioEncoderSettings(AudioEncoderSettings.Builder().setBitrate(it).build())
+                    }
                 }
-            }
-            // Si l'encodeur matériel refuse un réglage, Media3 choisit la valeur la plus proche
-            // au lieu d'échouer : le résultat réel est mesuré et affiché dans l'écran résultat.
-            .setEnableFallback(true)
-            .build()
+                // Si l'encodeur matériel refuse un réglage, Media3 choisit la valeur la plus proche
+                // au lieu d'échouer : le résultat réel est mesuré et affiché dans l'écran résultat.
+                // Sur Android 10+, Media3 sélectionne lui-même le profil H.264 High.
+                .setEnableFallback(true)
+                .build()
+        }
 
         val listener = object : Transformer.Listener {
             override fun onCompleted(composition: Composition, exportResult: ExportResult) {
@@ -166,14 +179,14 @@ class TranscodeService : Service() {
 
         // Presentation en "scale to fit" avec des dimensions de même proportion que la source :
         // aucun recadrage, étirement ou bande ajoutée. Elle n'est ajoutée que pour réduire.
-        val videoEffects = if (plan.needsResize) {
+        val videoEffects = if (plan.needsResize && !plan.passThrough) {
             listOf(Presentation.createForWidthAndHeight(plan.width, plan.height, Presentation.LAYOUT_SCALE_TO_FIT))
         } else {
             emptyList()
         }
         val edited = EditedMediaItem.Builder(MediaItem.fromUri(req.sourceUri))
             .setEffects(Effects(emptyList<AudioProcessor>(), videoEffects))
-            .apply { plan.frameRateCap?.let { setFrameRate(it) } }
+            .apply { if (!plan.passThrough) plan.frameRateCap?.let { setFrameRate(it) } }
             .build()
         val composition = Composition.Builder(EditedMediaItemSequence.Builder(edited).build())
             .apply { hdrMode?.let { setHdrMode(it) } }

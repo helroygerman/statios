@@ -30,6 +30,8 @@ data class VideoInfo(
         videoBitrate = videoBitrate,
         videoMime = videoMime,
         hasAudio = hasAudio,
+        audioMime = audioMime,
+        isHdr = isHdr,
     )
 }
 

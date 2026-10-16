@@ -14,6 +14,8 @@ data class SourceMedia(
     val videoBitrate: Long?,
     val videoMime: String?,
     val hasAudio: Boolean,
+    val audioMime: String? = null,
+    val isHdr: Boolean = false,
 )
 
 data class OutputPlan(
@@ -30,6 +32,12 @@ data class OutputPlan(
     val estimatedBytes: Long?,
     /** Vrai si le débit demandé a été abaissé pour ne pas dépasser celui de la source. */
     val bitrateLimitedBySource: Boolean,
+    /**
+     * Vrai si la source respecte déjà le profil (H.264, dimensions, cadence et débit dans les
+     * limites, audio AAC ou absent, pas de HDR) : le fichier est alors recopié sans ré-encodage,
+     * donc sans perte de qualité supplémentaire.
+     */
+    val passThrough: Boolean,
 )
 
 object OutputPlanner {
@@ -62,15 +70,23 @@ object OutputPlanner {
             ((target + (audio ?: 0)) / 8.0 * (ms / 1000.0) * CONTAINER_OVERHEAD).toLong()
         }
 
+        val needsResize = w != source.width || h != source.height
+        val passThrough = !needsResize && frameCap == null && !source.isHdr &&
+            source.videoMime.equals("video/avc", ignoreCase = true) &&
+            srcBitrate != null && srcBitrate > 0 &&
+            srcBitrate <= (spec.videoBitrate * EncodingConfig.PASS_THROUGH_BITRATE_TOLERANCE).toLong() &&
+            (!source.hasAudio || source.audioMime.equals("audio/mp4a-latm", ignoreCase = true))
+
         return OutputPlan(
             width = w,
             height = h,
-            needsResize = w != source.width || h != source.height,
+            needsResize = needsResize,
             videoBitrate = target.toInt(),
             audioBitrate = audio,
             frameRateCap = frameCap,
             estimatedBytes = estimate,
             bitrateLimitedBySource = limited,
+            passThrough = passThrough,
         )
     }
 

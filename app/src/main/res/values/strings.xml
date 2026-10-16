@@ -9,14 +9,17 @@
     <string name="notif_indeterminate">Traitement en cours…</string>
     <string name="cancel">Annuler</string>
 
-    <!-- Écran principal -->
-    <string name="empty_title">Préparez une vidéo pour votre statut</string>
-    <string name="empty_body">Choisissez une vidéo : elle est traitée sur votre téléphone. L\'original n\'est jamais modifié.</string>
+    <!-- Accueil -->
+    <string name="empty_title">Une vidéo propre pour votre statut</string>
+    <string name="empty_body">Choisissez une vidéo : elle est allégée sur votre téléphone, sans envoi sur Internet. L\'original n\'est jamais modifié.</string>
     <string name="pick_video">Choisir une vidéo</string>
-    <string name="change_video">Changer de vidéo</string>
+    <string name="change_video">Changer</string>
     <string name="loading_video">Lecture de la vidéo…</string>
     <string name="source_error_title">Vidéo inutilisable</string>
 
+    <!-- Source -->
+    <string name="details_show">Détails techniques</string>
+    <string name="details_hide">Masquer les détails</string>
     <string name="spec_duration">Durée</string>
     <string name="spec_size">Poids</string>
     <string name="spec_dimensions">Dimensions</string>
@@ -27,29 +30,36 @@
     <string name="audio_none">Aucune piste audio</string>
     <string name="hdr_badge">HDR</string>
 
+    <!-- Profils -->
     <string name="section_profile">Profil</string>
-    <string name="profile_experimental">Profils expérimentaux : ce ne sont pas des réglages officiels de WhatsApp. Comparez-les par vous-même après publication.</string>
     <string name="profile_balanced">Équilibré</string>
-    <string name="profile_balanced_desc">720p maximum · débit cible ≈ 2,5 Mb/s</string>
+    <string name="profile_balanced_desc">720p maximum, débit cible ≈ 2,5 Mb/s. Léger et fiable.</string>
     <string name="profile_detailed">Détaillé</string>
-    <string name="profile_detailed_desc">1080p maximum · débit cible ≈ 5 Mb/s</string>
-    <string name="profile_custom">Personnalisé</string>
-    <string name="profile_custom_desc">Résolution maximale et débit au choix</string>
+    <string name="profile_detailed_desc">1080p maximum, débit cible ≈ 5 Mb/s. Plus net, plus lourd.</string>
+    <string name="profile_custom">Perso</string>
+    <string name="profile_custom_desc">Choisissez la résolution maximale et le débit cible.</string>
+    <string name="profile_experimental">Profils expérimentaux, pas des réglages officiels de WhatsApp.</string>
     <string name="custom_resolution">Résolution maximale</string>
-    <string name="custom_bitrate">Débit vidéo cible : %1$s</string>
+    <string name="custom_bitrate">Débit vidéo cible</string>
 
-    <string name="plan_title">Sortie prévue</string>
-    <string name="plan_line">%1$s · H.264 · débit cible ≈ %2$s</string>
-    <string name="plan_estimate">Poids estimé : environ %1$s (estimation indicative)</string>
-    <string name="plan_disclaimer">Le débit est une cible, pas une garantie : l\'encodeur matériel peut produire une autre valeur.</string>
+    <!-- Aperçu de la sortie -->
+    <string name="plan_title">Résultat attendu</string>
+    <string name="plan_size_from_to">%1$s → ≈ %2$s</string>
+    <string name="plan_size_only">≈ %1$s</string>
+    <string name="plan_line">%1$s · débit cible ≈ %2$s</string>
+    <string name="plan_line_source">%1$s · débit conservé ≈ %2$s</string>
+    <string name="plan_copy_headline">Copie sans perte</string>
+    <string name="plan_pass_through">Déjà conforme : la vidéo sera recopiée sans ré-encodage, donc sans aucune perte.</string>
+    <string name="plan_heavier">L\'estimation dépasse le poids de l\'original.</string>
     <string name="plan_limited_by_source">Débit abaissé pour ne pas dépasser celui de la source.</string>
-    <string name="plan_no_upscale">Aucun agrandissement : la vidéo garde ses proportions et n\'est jamais étirée.</string>
     <string name="plan_hdr">Source HDR : conversion en SDR. Si l\'appareil ne la prend pas en charge, le traitement est refusé plutôt que de produire des couleurs délavées.</string>
+    <string name="plan_disclaimer">Estimation. L\'encodeur du téléphone peut produire un autre débit.</string>
     <string name="start_processing">Préparer la vidéo</string>
+    <string name="start_processing_copy">Copier la vidéo</string>
 
-    <string name="processing_title">Traitement en cours</string>
-    <string name="processing_percent">%1$d %%</string>
-    <string name="processing_indeterminate">Progression indisponible pour le moment…</string>
+    <!-- Traitement -->
+    <string name="processing_title">Préparation en cours</string>
+    <string name="processing_indeterminate">Progression indisponible pour l\'instant</string>
     <string name="processing_hint">Vous pouvez quitter l\'application : le traitement continue en arrière-plan, avec une notification.</string>
     <string name="processing_cancel">Annuler le traitement</string>
     <string name="failed_title">Le traitement a échoué</string>
@@ -61,25 +71,28 @@
     <!-- Résultat -->
     <string name="result_title">Résultat</string>
     <string name="back">Retour</string>
+    <string name="result_passed_title">Déjà conforme</string>
+    <string name="result_passed_body">Recopiée sans ré-encodage : qualité d\'origine, aucune perte supplémentaire.</string>
+    <string name="result_smaller_title">−%1$d %%</string>
+    <string name="result_smaller_body">%1$s de moins que l\'original (%2$s → %3$s)</string>
+    <string name="result_larger_title">Plus lourd que l\'original</string>
+    <string name="result_larger_body">%1$s contre %2$s. Pour WhatsApp, l\'original est peut-être un meilleur choix.</string>
     <string name="compare_title">Avant / après</string>
     <string name="compare_before">Avant</string>
     <string name="compare_after">Après</string>
-    <string name="compare_note">Valeurs mesurées sur le fichier produit. Le débit réel peut différer de la cible demandée.</string>
-    <string name="larger_title">Le résultat est plus lourd que l\'original</string>
-    <string name="larger_body">%1$s contre %2$s. L\'original est peut-être un meilleur choix : vous pouvez le conserver et le partager tel quel.</string>
-    <string name="smaller_note">%1$s de moins que l\'original (−%2$d %%).</string>
-    <string name="save_gallery">Enregistrer dans la galerie</string>
-    <string name="saving">Enregistrement…</string>
-    <string name="saved_gallery">Enregistré dans Films/StatusPrep</string>
-    <string name="share_title">Partager</string>
+    <string name="compare_note">Valeurs mesurées sur le fichier produit. Le débit réel peut différer de la cible.</string>
+    <string name="share_hint">Dans WhatsApp, choisissez vous-même « Mon statut ».</string>
+    <string name="share_generic">Partager</string>
     <string name="share_whatsapp">WhatsApp</string>
     <string name="share_business">WhatsApp Business</string>
-    <string name="share_other">Autres applications</string>
-    <string name="share_hint">Dans WhatsApp, choisissez vous-même « Mon statut ».</string>
+    <string name="share_other">Autres apps</string>
+    <string name="save_gallery">Galerie</string>
+    <string name="saving">Enregistrement…</string>
+    <string name="saved_gallery">Enregistré ✓</string>
+    <string name="saved_gallery_where">Enregistré dans Films/StatusPrep</string>
     <string name="share_app_missing">Application introuvable : ouverture du partage Android.</string>
-    <string name="original_title">Conserver l\'original</string>
-    <string name="original_body">L\'original reste intact sur votre téléphone. Partagez-le tel quel si le résultat ne convient pas.</string>
+    <string name="original_title">Pas convaincu ?</string>
+    <string name="original_body">L\'original reste intact sur votre téléphone. Vous pouvez le partager tel quel.</string>
     <string name="original_share">Partager l\'original</string>
     <string name="preparing_original">Préparation de l\'original…</string>
-    <string name="new_video">Traiter une autre vidéo</string>
 </resources>

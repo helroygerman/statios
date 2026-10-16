@@ -29,6 +29,18 @@ object EncodingConfig {
     const val CUSTOM_DEFAULT_MBPS = 3f
     val CUSTOM_DEFAULT_RESOLUTION = Resolution.P720
 
+    /**
+     * Une source H.264 conforme dont le débit ne dépasse pas la cible du profil de plus de ce
+     * facteur est recopiée telle quelle (aucun ré-encodage, donc aucune perte supplémentaire).
+     */
+    const val PASS_THROUGH_BITRATE_TOLERANCE = 1.1
+
+    /**
+     * Intervalle entre images clés demandé à l'encodeur (secondes). Media3 utilise 1 s par défaut,
+     * ce qui coûte du débit ; 3 s libère des bits pour l'image à débit égal.
+     */
+    const val KEYFRAME_INTERVAL_SECONDS = 3f
+
     /** Marge appliquée à l'estimation de taille lors du contrôle de l'espace disque. */
     const val STORAGE_SAFETY_FACTOR = 1.3
     const val STORAGE_SAFETY_BYTES = 50L * 1024 * 1024

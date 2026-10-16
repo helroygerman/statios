@@ -32,6 +32,8 @@ Règles communes : sortie MP4, H.264, AAC si la source a de l'audio, 30 images/s
 
 - « 720p » signifie « tient dans un cadre 1280×720 » en paysage et **720×1280 en portrait** ; une vidéo carrée tient dans 720×720.
 - Le débit est une **cible, pas une garantie** : l'encodeur matériel peut produire une autre valeur. L'écran résultat affiche la valeur réellement mesurée.
+- **Copie sans ré-encodage :** une source déjà conforme (H.264, dans le cadre du profil, ≤ 30 images/s, débit ≤ cible +10 %, audio AAC ou absent, pas de HDR) est simplement recopiée en MP4, sans perte supplémentaire. Sinon la vidéo est ré-encodée.
+- Réglages d'encodeur : débit variable (VBR), images clés toutes les 3 s (au lieu de 1 s par défaut, ce qui libère du débit pour l'image) ; le profil H.264 High est choisi par Media3 sur Android 10+. Les B-frames ne sont pas activées (non fiables sur certains appareils).
 - Le débit n'est pas relevé au-delà de celui de la source quand il est connu (avec une marge pour les sources HEVC/VP9/AV1, plus efficaces que H.264).
 - Source HDR : conversion SDR par tone mapping (MediaCodec, puis OpenGL en repli). Si l'appareil ne sait pas le faire, le traitement est refusé avec un message explicite plutôt que de produire des couleurs délavées.
 

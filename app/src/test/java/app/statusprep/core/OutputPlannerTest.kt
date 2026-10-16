@@ -19,7 +19,9 @@ class OutputPlannerTest {
         mime: String? = "video/avc",
         audio: Boolean = true,
         durationMs: Long? = 60_000,
-    ) = SourceMedia(w, h, durationMs, fps, bitrate, mime, audio)
+        audioMime: String? = "audio/mp4a-latm",
+        hdr: Boolean = false,
+    ) = SourceMedia(w, h, durationMs, fps, bitrate, mime, audio, audioMime, hdr)
 
     private fun assertAspectPreserved(sw: Int, sh: Int, p: OutputPlan) {
         // L'arrondi pair peut décaler chaque côté d'au plus 1 px.
@@ -214,5 +216,49 @@ class OutputPlannerTest {
         assertEquals(Resolution.P1080, detailed.resolution)
         assertEquals(5_000_000, detailed.videoBitrate)
         assertEquals(30, EncodingConfig.MAX_FPS)
+    }
+
+    // ---- Copie sans ré-encodage ----------------------------------------------------------
+
+    @Test fun conformingH264SourceIsPassedThrough() {
+        val p = OutputPlanner.plan(src(1280, 720, bitrate = 2_000_000), balanced)
+        assertTrue(p.passThrough)
+    }
+
+    @Test fun smallerPortraitLowBitrateIsPassedThrough() {
+        assertTrue(OutputPlanner.plan(src(540, 960, bitrate = 1_500_000), balanced).passThrough)
+    }
+
+    @Test fun highBitrateSourceIsReEncoded() {
+        assertFalse(OutputPlanner.plan(src(1280, 720, bitrate = 12_000_000), balanced).passThrough)
+    }
+
+    @Test fun tooLargeSourceIsReEncoded() {
+        assertFalse(OutputPlanner.plan(src(1920, 1080, bitrate = 2_000_000), balanced).passThrough)
+    }
+
+    @Test fun highFrameRateSourceIsReEncoded() {
+        assertFalse(OutputPlanner.plan(src(1280, 720, fps = 60f, bitrate = 2_000_000), balanced).passThrough)
+    }
+
+    @Test fun nonH264SourceIsReEncoded() {
+        assertFalse(OutputPlanner.plan(src(1280, 720, bitrate = 1_500_000, mime = "video/hevc"), balanced).passThrough)
+    }
+
+    @Test fun nonAacAudioPreventsPassThrough() {
+        assertFalse(OutputPlanner.plan(src(1280, 720, bitrate = 2_000_000, audioMime = "audio/opus"), balanced).passThrough)
+    }
+
+    @Test fun missingAudioDoesNotPreventPassThrough() {
+        assertTrue(OutputPlanner.plan(src(1280, 720, bitrate = 2_000_000, audio = false, audioMime = null), balanced).passThrough)
+    }
+
+    @Test fun hdrOrUnknownBitrateIsNeverPassedThrough() {
+        assertFalse(OutputPlanner.plan(src(1280, 720, bitrate = 2_000_000, hdr = true), balanced).passThrough)
+        assertFalse(OutputPlanner.plan(src(1280, 720, bitrate = null), balanced).passThrough)
+    }
+
+    @Test fun oddDimensionsAreNeverPassedThrough() {
+        assertFalse(OutputPlanner.plan(src(1001, 563, bitrate = 1_000_000), balanced).passThrough)
     }
 }
