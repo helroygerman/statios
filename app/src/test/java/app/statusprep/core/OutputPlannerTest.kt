@@ -177,7 +177,7 @@ class OutputPlannerTest {
     @Test fun estimateIsDerivedFromBitratesAndDuration() {
         val p = OutputPlanner.plan(src(1920, 1080, durationMs = 10_000), balanced)
         // (2,5 Mb/s + 96 kb/s) * 10 s / 8 * 1,02
-        assertEquals(3_310_500L, p.estimatedBytes)
+        assertEquals(3_309_900L.toDouble(), p.estimatedBytes!!.toDouble(), 1.0)
     }
 
     @Test fun unknownDurationGivesNoEstimate() {
