@@ -76,12 +76,11 @@ fun ResultContent(vm: MainViewModel, result: ResultUi, savedToGallery: Boolean, 
             if (ShareTarget.WHATSAPP_BUSINESS in whatsapp) {
                 PrimaryButton(stringResource(R.string.share_business), { shareResult(ShareTarget.WHATSAPP_BUSINESS) })
             }
-            val otherModifier = if (whatsapp.isEmpty()) {
-                { PrimaryButton(stringResource(R.string.share_other), { shareResult(ShareTarget.OTHER) }) }
+            if (whatsapp.isEmpty()) {
+                PrimaryButton(stringResource(R.string.share_other), { shareResult(ShareTarget.OTHER) })
             } else {
-                { SecondaryButton(stringResource(R.string.share_other), { shareResult(ShareTarget.OTHER) }) }
+                SecondaryButton(stringResource(R.string.share_other), { shareResult(ShareTarget.OTHER) })
             }
-            otherModifier()
             SecondaryButton(
                 text = when {
                     busy == MainViewModel.Busy.SAVING -> stringResource(R.string.saving)
